@@ -1,0 +1,19 @@
+---
+title: ""
+output: html_document
+---
+```{r}
+library(ggplot2)
+library(dplyr)
+library(caret)
+```
+
+
+```{r}
+train_data <- read.csv("~/R/Binary-classification-model-Titanic/dataset/train.csv")
+test_data <- read.csv("~/R/Binary-classification-model-Titanic/dataset/test.csv")
+
+train_data$type <- "train"
+test_data$test <- "test"
+```
+
