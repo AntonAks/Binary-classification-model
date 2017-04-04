@@ -1,19 +1,52 @@
 ---
-title: ""
-output: html_document
+title: "Prediction Model on Titanic Competition"
+author: 'Anton Aksyonov'
+date: '07.04.2017'
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    fig_width: 7
+    fig_height: 4.5
+    theme: readable
+    highlight: tango
 ---
-```{r}
+
+# Introducing
+
+
+# Loading libralies and data
+```{r, message=FALSE, warning=FALSE}
+# Load libraries 
 library(ggplot2)
-library(dplyr)
-library(caret)
+library(data.table)
+
+# Load data
+train_data <- fread("~/R/Binary-classification-model-Titanic/dataset/train.csv", stringsAsFactors = TRUE)
+train_data[,Survived.f := as.factor(Survived)]
+train_data <- train_data[,type := 'train',]
+levels(train_data$Survived.f) <- c("Died", "Survived")
+
+test_data <- fread("~/R/Binary-classification-model-Titanic/dataset/test.csv", stringsAsFactors = TRUE)
+test_data <- test_data[,type := 'test',]
+
+
+# We combine training data with test data
+full_data <- rbindlist(l = list(train_data,test_data)
+                       ,use.names = TRUE
+                       ,fill = TRUE
+                       ,idcol = NULL)
+```
+
+# Exploratory visual analysis
+```{r, message=FALSE, warning=FALSE}
+ggplot(train_data[,n:=1,], aes(x = Survived.f, y = n, fill = Survived.f)) + 
+  ggtitle("How many of dead and survivors in Pclass") + 
+  labs(x = NULL, y = "Number of Passengers") +
+  geom_bar(stat = "identity") + 
+  facet_grid(. ~ Pclass)
 ```
 
 
-```{r}
-train_data <- read.csv("~/R/Binary-classification-model-Titanic/dataset/train.csv")
-test_data <- read.csv("~/R/Binary-classification-model-Titanic/dataset/test.csv")
 
-train_data$type <- "train"
-test_data$test <- "test"
-```
 
