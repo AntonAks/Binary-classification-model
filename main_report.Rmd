@@ -23,9 +23,9 @@ library(data.table)
 
 # Load data
 train_data <- fread("~/R/Binary-classification-model-Titanic/dataset/train.csv", stringsAsFactors = TRUE)
-train_data[,Survived.f := as.factor(Survived)]
 train_data <- train_data[,type := 'train',]
-levels(train_data$Survived.f) <- c("Died", "Survived")
+train_data[,Survived.f := as.factor(Survived),]
+train_data[,levels(Survived.f) <- c("Died", "Survived")]
 
 test_data <- fread("~/R/Binary-classification-model-Titanic/dataset/test.csv", stringsAsFactors = TRUE)
 test_data <- test_data[,type := 'test',]
