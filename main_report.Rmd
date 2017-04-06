@@ -25,11 +25,10 @@ library(data.table)
 train_data <- fread("~/R/Binary-classification-model-Titanic/dataset/train.csv", stringsAsFactors = TRUE)
 train_data <- train_data[,type := 'train',]
 train_data[,Survived.f := as.factor(Survived),]
-train_data[,levels(Survived.f) <- c("Died", "Survived")]
+levels(train_data$Survived.f) <- c("Died", "Survived")
 
 test_data <- fread("~/R/Binary-classification-model-Titanic/dataset/test.csv", stringsAsFactors = TRUE)
 test_data <- test_data[,type := 'test',]
-
 
 # We combine training data with test data
 full_data <- rbindlist(l = list(train_data,test_data)
@@ -41,12 +40,29 @@ full_data <- rbindlist(l = list(train_data,test_data)
 # Exploratory visual analysis
 ```{r, message=FALSE, warning=FALSE}
 ggplot(train_data[,n:=1,], aes(x = Survived.f, y = n, fill = Survived.f)) + 
-  ggtitle("How many of dead and survivors in Pclass") + 
+  ggtitle("How many of dead and survivors") + 
   labs(x = NULL, y = "Number of Passengers") +
   geom_bar(stat = "identity") + 
   facet_grid(. ~ Pclass)
 ```
 
 
+```{r, message=FALSE, warning=FALSE}
+ggplot(train_data[,n:= 1,], aes(x = Age, fill = Survived.f)) + 
+  ggtitle("Distribution of survivors and deaths by age. Grid by Class") + 
+  labs(x = NULL, y = "Number of Passengers") +
+  geom_histogram(bins = 100, alpha = 0.5
+                 ,binwidth = 1
+                 ,col = 'black') + 
+  scale_x_continuous(breaks=seq(0, 90, 10 )) +
+  facet_grid(Pclass ~ .)
+```
+
+# Names 
+```{r, message=FALSE, warning=FALSE}
+
+full_data[,Name:= gsub('.*, |\\..*', '', Name),] 
+unique(full_data[,Name,]) 
+```
 
 
