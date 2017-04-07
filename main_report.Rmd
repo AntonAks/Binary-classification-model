@@ -20,18 +20,19 @@ output:
 # Load libraries 
 library(ggplot2)
 library(data.table)
+library(MASS)
 ```
 
 
-```{r, message=FALSE, warning=FALSE, include=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # Load train data
-train_data <- fread("~/R/Binary-classification-model-master/dataset/train.csv", stringsAsFactors = TRUE)
+train_data <- fread("~/R/Binary-classification-model-Titanic/dataset/train.csv", stringsAsFactors = TRUE)
 train_data$type <- 1
 train_data$Survived.f <- as.factor(train_data$Survived)
 levels(train_data$Survived.f) <- c("Died", "Survived")
 
 # Load train data
-test_data <- fread("~/R/Binary-classification-model-master/dataset/test.csv", stringsAsFactors = TRUE)
+test_data <- fread("~/R/Binary-classification-model-Titanic/dataset/test.csv", stringsAsFactors = TRUE)
 test_data$type <- 0
 ```
 
@@ -84,28 +85,53 @@ ggplot(full_data[full_data$type == 1] , aes(x = Age, fill = Survived.f)) +
 
 full_data$Title <- gsub('.*, |\\..*', '', full_data$Name) 
 full_data$Title <- as.factor(full_data$Title)
-title_tab <- full_data[,list(number_of_distinct_orders = uniqueN(PassengerId)), by = Title]
+title_tab <- full_data[,list(number_of_distinct_orders = uniqueN(PassengerId)), by = list(Title)]
 title_tab[order(-number_of_distinct_orders)]
+```
+
+
+```{r, message=FALSE, warning=FALSE, results = 'hide'}
+# add a 'Rare' title
+full_data[Title!='Mr' & Title!='Miss' & Title!='Mrs' & Title!='Master',Title:='Rare']
 ```
 
 
 ```{r, message=FALSE, warning=FALSE}
-vip_title <- c('Don', 'Dona','Sir','the Countess', 'Lady', 'Jonkheer')
-common_title <- c('Miss', 'Mrs', 'Mr','Master')
-
-'%!in%' <- function(x,y)!('%in%'(x,y))  #define not in function
-
-#Assign names to similar ones to avoid outliers
-full_data$Title[full_data$Title == 'Mlle']        <- 'Miss' 
-full_data$Title[full_data$Title == 'Ms']          <- 'Miss'
-full_data$Title[full_data$Title == 'Mme']         <- 'Mrs' 
-
-full_data$Title[full_data$Title %!in% common_title && full_data$Title %!in% vip_title]  <- 'Rare Title'
-full_data$Title[full_data$Title %in% vip_title] <- 'Vip'
-full_data$Title <- as.factor(full_data$Title)
-
-
 title_tab <- full_data[,list(number_of_distinct_orders = uniqueN(PassengerId)), by = Title]
 title_tab[order(-number_of_distinct_orders)]
 ```
+
+# Missing Values
+
+## Age
+```{r, message=FALSE, warning=FALSE}
+na_values["Age",]
+```
+```{r, message=FALSE, warning=FALSE, results='hide'}
+
+age_predict_model <- lm(Age ~ Ticket + Title + Fare + Pclass + Parch + SibSp, data = full_data[!is.na(Age)&!is.na(Fare)])
+
+stepAIC(age_predict_model, direction = 'backward')
+
+```
+
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+
+age_predict_model <- lm(formula = Age ~ Ticket + Title + SibSp, data = full_data[!is.na(Age) & 
+    !is.na(Fare)])
+
+
+full_data[is.na(Age),Age:=predict.lm(age_predict_model,full_data[!is.na(Age) & 
+    !is.na(Fare)])]
+
+
+```
+
+## Fare
+```{r, message=FALSE, warning=FALSE}
+
+```
+
+
 
