@@ -1,54 +1,75 @@
 ---
 title: "Prediction Model on Titanic Competition"
 author: 'Anton Aksyonov'
-date: '07.04.2017'
+date: '11.04.2017'
 output:
   html_document:
     number_sections: true
     toc: true
-    fig_width: 7
-    fig_height: 4.5
-    theme: readable
-    highlight: tango
+    fig_width: 9
+    fig_height: 5
+    theme: yeti
+    highlight: textmate
 ---
 
 # Introducing
 
-
 # Loading libralies and data
+
 ```{r, message=FALSE, warning=FALSE}
 # Load libraries 
 library(ggplot2)
 library(data.table)
+```
 
-# Load data
-train_data <- fread("~/R/Binary-classification-model-Titanic/dataset/train.csv", stringsAsFactors = TRUE)
-train_data <- train_data[,type := 'train',]
-train_data[,Survived.f := as.factor(Survived),]
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+# Load train data
+train_data <- fread("~/R/Binary-classification-model-master/dataset/train.csv", stringsAsFactors = TRUE)
+train_data$type <- 1
+train_data$Survived.f <- as.factor(train_data$Survived)
 levels(train_data$Survived.f) <- c("Died", "Survived")
 
-test_data <- fread("~/R/Binary-classification-model-Titanic/dataset/test.csv", stringsAsFactors = TRUE)
-test_data <- test_data[,type := 'test',]
+# Load train data
+test_data <- fread("~/R/Binary-classification-model-master/dataset/test.csv", stringsAsFactors = TRUE)
+test_data$type <- 0
+```
 
+
+```{r, message=FALSE, warning=FALSE}
 # We combine training data with test data
 full_data <- rbindlist(l = list(train_data,test_data)
                        ,use.names = TRUE
                        ,fill = TRUE
                        ,idcol = NULL)
+
+full_data$Pclass <- as.factor(full_data$Pclass)
+levels(full_data$Pclass) <- c("1st Class", "2nd Class", "3rd Class")
+
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+na_values <- data.frame('NA_and_Empty_train' = apply(X = full_data[full_data$type == 1,],2, function(x){sum(is.na(x) | x == "")})
+                        ,'NA_and_Empty_test' = apply(X = full_data[full_data$type == 0,],2, function(x){sum(is.na(x) | x == "")}))
+
+na_values[na_values$NA_and_Empty_train>0 | na_values$NA_and_Empty_test>0,]
+
+
 ```
 
 # Exploratory visual analysis
-```{r, message=FALSE, warning=FALSE}
-ggplot(train_data[,n:=1,], aes(x = Survived.f, y = n, fill = Survived.f)) + 
+```{r, message=FALSE, warning=FALSE,fig.align='center'}
+ggplot(full_data[full_data$type == 1] , aes(x = Survived.f, y = type, fill = Survived.f)) + 
   ggtitle("How many of dead and survivors") + 
   labs(x = NULL, y = "Number of Passengers") +
-  geom_bar(stat = "identity") + 
+  geom_bar(stat = "identity", alpha = 0.7) + 
   facet_grid(. ~ Pclass)
 ```
 
 
-```{r, message=FALSE, warning=FALSE}
-ggplot(train_data[,n:= 1,], aes(x = Age, fill = Survived.f)) + 
+```{r, message=FALSE, warning=FALSE,fig.align='center'}
+ggplot(full_data[full_data$type == 1] , aes(x = Age, fill = Survived.f)) + 
   ggtitle("Distribution of survivors and deaths by age. Grid by Class") + 
   labs(x = NULL, y = "Number of Passengers") +
   geom_histogram(bins = 100, alpha = 0.5
@@ -61,8 +82,30 @@ ggplot(train_data[,n:= 1,], aes(x = Age, fill = Survived.f)) +
 # Names 
 ```{r, message=FALSE, warning=FALSE}
 
-full_data[,Name:= gsub('.*, |\\..*', '', Name),] 
-unique(full_data[,Name,]) 
+full_data$Title <- gsub('.*, |\\..*', '', full_data$Name) 
+full_data$Title <- as.factor(full_data$Title)
+title_tab <- full_data[,list(number_of_distinct_orders = uniqueN(PassengerId)), by = Title]
+title_tab[order(-number_of_distinct_orders)]
 ```
 
+
+```{r, message=FALSE, warning=FALSE}
+vip_title <- c('Don', 'Dona','Sir','the Countess', 'Lady', 'Jonkheer')
+common_title <- c('Miss', 'Mrs', 'Mr','Master')
+
+'%!in%' <- function(x,y)!('%in%'(x,y))  #define not in function
+
+#Assign names to similar ones to avoid outliers
+full_data$Title[full_data$Title == 'Mlle']        <- 'Miss' 
+full_data$Title[full_data$Title == 'Ms']          <- 'Miss'
+full_data$Title[full_data$Title == 'Mme']         <- 'Mrs' 
+
+full_data$Title[full_data$Title %!in% common_title && full_data$Title %!in% vip_title]  <- 'Rare Title'
+full_data$Title[full_data$Title %in% vip_title] <- 'Vip'
+full_data$Title <- as.factor(full_data$Title)
+
+
+title_tab <- full_data[,list(number_of_distinct_orders = uniqueN(PassengerId)), by = Title]
+title_tab[order(-number_of_distinct_orders)]
+```
 
