@@ -49,14 +49,20 @@ levels(full_data$Pclass) <- c("1st Class", "2nd Class", "3rd Class")
 
 ```
 
-
+## New functions
 ```{r, message=FALSE, warning=FALSE}
-na_values <- data.frame('NA_and_Empty_train' = apply(X = full_data[full_data$type == 1,],2, function(x){sum(is.na(x) | x == "")})
+show_na_and_empty <- function(){
+
+  na_values <- data.frame('NA_and_Empty_train' = apply(X = full_data[full_data$type == 1,],2, function(x){sum(is.na(x) | x == "")})
                         ,'NA_and_Empty_test' = apply(X = full_data[full_data$type == 0,],2, function(x){sum(is.na(x) | x == "")}))
+  
+  na_values <- na_values[na_values$NA_and_Empty_train>0 | na_values$NA_and_Empty_test>0,]
 
-na_values[na_values$NA_and_Empty_train>0 | na_values$NA_and_Empty_test>0,]
+  return(na_values)    
+}
 
 
+show_na_and_empty()
 ```
 
 # Exploratory visual analysis
@@ -82,7 +88,6 @@ ggplot(full_data[full_data$type == 1] , aes(x = Age, fill = Survived.f)) +
 
 # Names 
 ```{r, message=FALSE, warning=FALSE}
-
 full_data$Title <- gsub('.*, |\\..*', '', full_data$Name) 
 full_data$Title <- as.factor(full_data$Title)
 title_tab <- full_data[,list(number_of_distinct_orders = uniqueN(PassengerId)), by = list(Title)]
@@ -105,25 +110,31 @@ title_tab[order(-number_of_distinct_orders)]
 
 ## Age
 ```{r, message=FALSE, warning=FALSE}
-na_values["Age",]
+show_na_and_empty()
 ```
+```{r, message=FALSE, warning=FALSE}
+
+age_predict_model <- lm(Age ~ SibSp + Title + Fare + Pclass + Parch, data = full_data[!is.na(Age)&!is.na(Fare)])
+
+stepAIC(age_predict_model, direction = 'both',trace = 6)
+
+```
+
+
 ```{r, message=FALSE, warning=FALSE, results='hide'}
 
-age_predict_model <- lm(Age ~ Ticket + Title + Fare + Pclass + Parch + SibSp, data = full_data[!is.na(Age)&!is.na(Fare)])
-
-stepAIC(age_predict_model, direction = 'backward')
-
-```
-
-
-```{r, message=FALSE, warning=FALSE, results='hide'}
-
-age_predict_model <- lm(formula = Age ~ Ticket + Title + SibSp, data = full_data[!is.na(Age) & 
+age_predict_model <- lm(formula = Age ~ Title + Pclass + SibSp, data = full_data[!is.na(Age) & 
     !is.na(Fare)])
 
 
-full_data[is.na(Age),Age:=predict.lm(age_predict_model,full_data[!is.na(Age) & 
-    !is.na(Fare)])]
+full_data[is.na(Age),Age:=round(predict.lm(age_predict_model,full_data[!is.na(Age) & 
+    !is.na(Fare)]),0)]
+
+
+ggplot(data = full_data, aes(x = Age)) + 
+  geom_histogram(bins = 100, alpha = 0.5
+                 ,binwidth = 1
+                 ,col = 'black')
 
 
 ```
@@ -131,7 +142,69 @@ full_data[is.na(Age),Age:=predict.lm(age_predict_model,full_data[!is.na(Age) &
 ## Fare
 ```{r, message=FALSE, warning=FALSE}
 
+ggplot(data = full_data[Pclass == '3rd Class' & Embarked == 'S'], aes(x = Fare)) + 
+  geom_histogram(bins = 50, alpha = 0.5
+                 ,binwidth = 1
+                 ,col = 'black') + 
+  geom_vline(aes(xintercept = median(Fare, na.rm = TRUE)),
+    colour = 'red', linetype = 'dotdash', lwd = 1)
+
 ```
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+full_data[is.na(Fare),list(PassengerId,Pclass,Name,Fare)]
+```
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+full_data[is.na(Fare),Fare:=median(full_data[Pclass == '3rd Class' & Embarked == 'S',Fare],na.rm = TRUE)]
+
+full_data[PassengerId == 1044,list(PassengerId,Pclass,Name,Fare)]
+
+```
+
+## Embarked
+```{r, message=FALSE, warning=FALSE}
+
+ggplot(data = full_data, aes(x = Embarked, y = type, fill = Embarked)) + 
+  geom_bar(stat = "identity", alpha = 0.7)
+
+
+```
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+full_data[Embarked == "", Embarked:='S']
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+show_na_and_empty()
+```
+
+## Cabin Number
+```{r, message=FALSE, warning=FALSE}
+
+full_data[,Cabin:= as.character(Cabin)]
+full_data[,Cabin_number:= sapply(full_data$Cabin,function(x) strsplit(x,'[A-Z]')[[1]][2])]
+full_data[,Cabin_number:=as.numeric(Cabin_number)]
+full_data[is.na(Cabin_number),Cabin_number:=0]
+
+full_data[Cabin_number==0, Cabin_kind:="0_Unknow"]
+full_data[Cabin_number!=0 & Cabin_number < 50,Cabin_kind:="1_Front"]
+full_data[Cabin_number!=0 & Cabin_number >= 50 & Cabin_number < 100,Cabin_kind:="2_Middle"]
+full_data[Cabin_number!=0 & Cabin_number >= 100,Cabin_kind:="3_End"]
+
+
+
+cabin_tab <- full_data[,.(count_person = uniqueN(PassengerId)),by = list(Cabin_kind, Pclass)]
+
+ggplot(data = cabin_tab, aes(x = Pclass, y = count_person, fill = Cabin_kind)) + 
+  geom_bar(stat = 'identity')
+
+
+```
+
+
+
 
 
 
