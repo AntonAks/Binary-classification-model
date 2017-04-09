@@ -19,8 +19,11 @@ output:
 ```{r, message=FALSE, warning=FALSE}
 # Load libraries 
 library(ggplot2)
+library(ggrepel)
 library(data.table)
 library(MASS)
+library(ROCR)
+
 ```
 
 
@@ -51,7 +54,48 @@ levels(full_data$Pclass) <- c("1st Class", "2nd Class", "3rd Class")
 
 ## New functions
 ```{r, message=FALSE, warning=FALSE}
-show_na_and_empty <- function(){
+
+# multiplot ####
+f.multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+
+
+
+f.show_na_and_empty <- function(){
 
   na_values <- data.frame('NA_and_Empty_train' = apply(X = full_data[full_data$type == 1,],2, function(x){sum(is.na(x) | x == "")})
                         ,'NA_and_Empty_test' = apply(X = full_data[full_data$type == 0,],2, function(x){sum(is.na(x) | x == "")}))
@@ -61,8 +105,11 @@ show_na_and_empty <- function(){
   return(na_values)    
 }
 
+```
 
-show_na_and_empty()
+
+```{r}
+f.show_na_and_empty()
 ```
 
 # Exploratory visual analysis
@@ -110,18 +157,18 @@ title_tab[order(-number_of_distinct_orders)]
 
 ## Age
 ```{r, message=FALSE, warning=FALSE}
-show_na_and_empty()
+f.show_na_and_empty()
 ```
 ```{r, message=FALSE, warning=FALSE}
 
 age_predict_model <- lm(Age ~ SibSp + Title + Fare + Pclass + Parch, data = full_data[!is.na(Age)&!is.na(Fare)])
 
-stepAIC(age_predict_model, direction = 'both',trace = 6)
+stepAIC(age_predict_model, direction = 'both')
 
 ```
 
 
-```{r, message=FALSE, warning=FALSE, results='hide'}
+```{r, message=FALSE, warning=FALSE, results='hide',fig.align='center'}
 
 age_predict_model <- lm(formula = Age ~ Title + Pclass + SibSp, data = full_data[!is.na(Age) & 
     !is.na(Fare)])
@@ -140,7 +187,7 @@ ggplot(data = full_data, aes(x = Age)) +
 ```
 
 ## Fare
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE,fig.align='center'}
 
 ggplot(data = full_data[Pclass == '3rd Class' & Embarked == 'S'], aes(x = Fare)) + 
   geom_histogram(bins = 50, alpha = 0.5
@@ -177,11 +224,15 @@ full_data[Embarked == "", Embarked:='S']
 
 
 ```{r, message=FALSE, warning=FALSE}
-show_na_and_empty()
+f.show_na_and_empty()
 ```
 
-## Cabin Number
-```{r, message=FALSE, warning=FALSE}
+
+
+# New Features
+
+## Cabin Kind
+```{r, message=FALSE, warning=FALSE, fig.align='center', results='hide'}
 
 full_data[,Cabin:= as.character(Cabin)]
 full_data[,Cabin_number:= sapply(full_data$Cabin,function(x) strsplit(x,'[A-Z]')[[1]][2])]
@@ -193,18 +244,116 @@ full_data[Cabin_number!=0 & Cabin_number < 50,Cabin_kind:="1_Front"]
 full_data[Cabin_number!=0 & Cabin_number >= 50 & Cabin_number < 100,Cabin_kind:="2_Middle"]
 full_data[Cabin_number!=0 & Cabin_number >= 100,Cabin_kind:="3_End"]
 
-
-
-cabin_tab <- full_data[,.(count_person = uniqueN(PassengerId)),by = list(Cabin_kind, Pclass)]
-
-ggplot(data = cabin_tab, aes(x = Pclass, y = count_person, fill = Cabin_kind)) + 
-  geom_bar(stat = 'identity')
-
+cabin_tab <- full_data[,.(count_person = uniqueN(PassengerId))
+                       ,by = list(Cabin_kind, Pclass, Survived.f,type)]
+ggplot(data = cabin_tab, aes(x = Cabin_kind, y = count_person, fill = Pclass)) + 
+  geom_bar(stat = 'identity', alpha = 0.7)
 
 ```
 
+```{r, message=FALSE, warning=FALSE, fig.align='center', results='hide'}
+ggplot(data = cabin_tab[type == 1], aes(x = Cabin_kind, y = count_person, fill = Survived.f)) + 
+  geom_bar(stat = 'identity', alpha = 0.7) + 
+  facet_grid(Pclass ~ .)
+
+```
+
+## Person
+
+```{r, message=FALSE, warning=FALSE, fig.align='center', results='hide'}
+
+full_data[,Person:= as.factor(ifelse(full_data$Age< 18
+                                       , ifelse(full_data$Sex == 'male','boy','girl')
+                                       , ifelse(full_data$Sex == 'male','man','woman')))]
 
 
+p1_person <- 
+  ggplot(data = full_data[type == 1,], aes(x = Person, y = type, fill = Survived.f)) + 
+  geom_bar(stat = 'identity', alpha = 0.7) + 
+  facet_grid(Pclass ~ .)
+
+p2_person <- 
+  ggplot(data = full_data[type == 1,], aes(x = Person, y = type, fill = Survived.f)) + 
+  geom_bar(stat = 'identity',position = "fill", alpha = 0.7) + 
+  facet_grid(Pclass ~ .)
+
+f.multiplot(p1_person, p2_person)
+
+```
+
+## Family size
+```{r, message=FALSE, warning=FALSE, results='hide'}
+full_data[,Family_size:=SibSp+Parch+1]
+```
+
+# Prediction model
+
+```{r, message=FALSE, warning=FALSE}
+train_data <- full_data[type==1]
+test_data <- full_data[type==0]
+
+train_data.p <- train_data[,.(Survived,Pclass,Sex,Age,SibSp,Parch,Fare,Embarked,Cabin_kind,Person,Family_size)]
+
+prediction_model_glm <- glm(Survived ~ . , data = train_data.p, family = 'binomial')
+
+stepAIC(prediction_model_glm, direction = 'backward',)
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+
+prediction_model_glm <- glm(Survived ~ Pclass + 
+                              Age + 
+                              Fare *
+                              Embarked +
+                              Cabin_kind + 
+                              Family_size +
+                              Sex
+                            , family = "binomial"
+                            , data = train_data.p)
+
+
+train_data$prob <- predict(prediction_model_glm,train_data,type = 'response')
+
+
+train_data$pred <- ifelse(predict(prediction_model_glm,train_data,type = 'response')>0.60,1,0)
+
+
+sum(train_data$Survived == train_data$pred) / 891
+
+summary(prediction_model_glm)
+
+```
+
+## ROCR
+```{r}
+pred_fit <- prediction(train_data$prob, train_data$Survived)
+perf_fit <- performance(pred_fit, "tpr", "fpr")
+plot(perf_fit, colorize=T , print.cutoffs.at = seq(0,1,by=0.1))
+auc  <- performance(pred_fit, measure = "auc")
+str(auc)
+
+perf3  <- performance(pred_fit, x.measure = "cutoff", measure = "spec")
+perf4  <- performance(pred_fit, x.measure = "cutoff", measure = "sens")
+perf5  <- performance(pred_fit, x.measure = "cutoff", measure = "acc")
+
+plot(perf3, col = "red", lwd =2)
+plot(add=T, perf4 , col = "green", lwd =2)
+plot(add=T, perf5, lwd =2)
+
+legend(x = 0.6,y = 0.3, c("spec", "sens", "accur"), 
+       lty = 1, col =c('red', 'green', 'black'), bty = 'n', cex = 1, lwd = 2)
+abline(v= 0.38, lwd = 2)
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+
+test_data[,Survived:=ifelse(predict(prediction_model_glm,test_data,type = 'response')>0.605,1,0)]
+final_solution <- test_data[,1:2]
+write.csv(final_solution, file = 'final_solution_new.csv', row.names = FALSE)
+
+```
 
 
 
