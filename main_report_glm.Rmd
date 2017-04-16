@@ -23,7 +23,7 @@ library(ggrepel)
 library(data.table)
 library(MASS)
 library(ROCR)
-library(caret)
+library(robust)
 
 ```
 
@@ -294,42 +294,63 @@ full_data[,Family_size:=SibSp+Parch+1]
 train_data <- full_data[type==1]
 test_data <- full_data[type==0]
 
-train_data.p <- train_data[,.(Survived.f,Pclass,Sex,Age,SibSp,Parch,Fare,Embarked,Cabin_kind,Person,Family_size)]
+train_data.p <- train_data[,.(Survived,Pclass,Sex,Age,Fare,SibSp,Parch,Person, Embarked,Cabin_kind,Family_size)]
 
+prediction_model_glm <- glm(Survived ~ . , data = train_data.p, family = 'binomial')
 
+stepAIC(prediction_model_glm, direction = 'backward')
 
 ```
 
 ```{r, message=FALSE, warning=FALSE}
 
-set.seed(11)
-prediction_model <- train(Survived.f ~ #Pclass +
-                                      Age + 
-                                      Fare *
-                                      Family_size +
-                                      Embarked +
-                                      Sex
-                                    , data = train_data.p
-                                    , method = "rpart")
+prediction_model_glm <- glm(Survived ~ Pclass + 
+                              Age + 
+                              Fare +
+                              #Embarked +
+                              Cabin_kind + 
+                              Family_size +
+                              Sex
+                            , family = "binomial"
+                            , data = train_data.p
+                            , method = 'cubif')
 
-plot(varImp(prediction_model))
-plot(prediction_model)
 
-train_data.p[,Survived_pred:=predict(prediction_model,train_data.p)]
 
-sum(train_data.p$Survived.f == train_data.p$Survived_pred) / 891
+
+
+
+
+train_data$prob <- predict(prediction_model_glm,train_data,type = 'response')
+
+
+train_data$pred <- ifelse(predict(prediction_model_glm,train_data,type = 'response')>0.6065,1,0)
+
+
+sum(train_data$Survived == train_data$pred) / 891
+
+summary(prediction_model_glm)
 
 ```
 
-Save final results
+## ROCR
+```{r}
+pred_fit <- prediction(train_data$prob, train_data$Survived)
+perf_fit <- performance(pred_fit, "tpr", "fpr")
+
+auc  <- performance(pred_fit, measure = "auc")
+auc <- auc@y.values[[1]]
+
+plot(perf_fit, colorize=T , print.cutoffs.at = seq(0,1,by=0.1))
+lines(c(0,1),c(0,1))
+text(0.6,0.2,paste("AUC = ", round(auc,4), sep=""), cex=1.4)
+
+```
+
 ```{r, message=FALSE, warning=FALSE}
 
-test_data[,Survived.f:= predict(prediction_model,newdata = test_data)]
-
-test_data[,Survived.f:= as.integer(Survived.f)-1]
-
-final_solution <- test_data[,c(1,14)]
-names(final_solution)[2] <- "Survived"
+test_data[,Survived:=ifelse(predict(prediction_model_glm,test_data,type = 'response')>0.6065,1,0)]
+final_solution <- test_data[,1:2]
 write.csv(final_solution, file = 'final_solution_new.csv', row.names = FALSE)
 
 ```
